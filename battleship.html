@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Six — Naval Combat</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+:root{
+  --bg: #071019;
+  --panel: #0D1B27;
+  --panel-2: #0F2233;
+  --line: #1C3547;
+  --water: #0A1E2E;
+  --ship: #1F3B4F;
+  --hit: #E85C3A;
+  --miss: #33566F;
+  --sunk: #7A2E1E;
+  --phos: #4FE8A6;
+  --phos-dim: #2A6E56;
+  --text: #D9E7EE;
+  --text-dim: #6E8998;
+  --text-faint: #45606E;
+  --amber: #E8B84F;
+}
+*{ box-sizing: border-box; }
+body{
+  margin:0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  min-height:100vh;
+  padding: 32px 16px 64px;
+}
+.wrap{ max-width: 980px; margin: 0 auto; }
+
+.header{
+  display:flex;
+  align-items:center;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.radar{
+  position:relative;
+  width:72px; height:72px;
+  border-radius:50%;
+  border:1px solid var(--phos-dim);
+  flex-shrink:0;
+  overflow:hidden;
+  background: radial-gradient(circle, transparent 0%, transparent 60%, rgba(79,232,166,0.05) 100%);
+}
+.radar::before{
+  content:"";
+  position:absolute;
+  top:50%; left:50%;
+  width:36px; height:1px;
+  background: linear-gradient(90deg, var(--phos), transparent);
+  transform-origin: left center;
+  animation: sweep 4s linear infinite;
+}
+.radar::after{
+  content:"";
+  position:absolute;
+  inset:14px;
+  border-radius:50%;
+  border:1px solid var(--phos-dim);
+  opacity:0.5;
+}
+@keyframes sweep{
+  from{ transform: rotate(0deg); }
+  to{ transform: rotate(360deg); }
+}
+.title-block h1{
+  font-family:'Space Mono', monospace;
+  font-size: 26px;
+  font-weight:700;
+  letter-spacing: 2px;
+  margin:0;
+  color: var(--text);
+}
+.title-block p{
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+.panel{
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 20px 24px;
+}
+
+.setup-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 640px){ .setup-grid{ grid-template-columns: 1fr; } }
+
+.eyebrow{
+  font-family:'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--phos);
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+
+.fleet-list{ list-style:none; margin:0; padding:0; }
+.fleet-list li{
+  display:flex; justify-content:space-between;
+  font-size: 13.5px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-dim);
+}
+.fleet-list li:last-child{ border-bottom:none; }
+.fleet-list span.name{ color: var(--text); }
+.fleet-list span.len{ font-family:'Space Mono', monospace; color: var(--text-faint); }
+
+.diff-options{ display:flex; flex-direction:column; gap:8px; }
+.diff-opt{
+  display:flex; align-items:center; gap:10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor:pointer;
+  transition: border-color 0.15s;
+}
+.diff-opt:hover{ border-color: var(--phos-dim); }
+.diff-opt.active{ border-color: var(--phos); background: rgba(79,232,166,0.06); }
+.diff-opt input{ accent-color: var(--phos); }
+.diff-opt .dlabel{ font-size: 14px; color: var(--text); font-weight:500; }
+.diff-opt .ddesc{ font-size: 12px; color: var(--text-dim); margin-top:2px; }
+
+.start-btn{
+  margin-top: 20px;
+  width:100%;
+  padding: 13px;
+  background: var(--phos);
+  color: #04231A;
+  border:none;
+  border-radius: 4px;
+  font-family:'Space Mono', monospace;
+  font-size: 14px;
+  font-weight:700;
+  letter-spacing: 1.5px;
+  cursor:pointer;
+  text-transform: uppercase;
+}
+.start-btn:hover{ background:#63f0b3; }
+
+.game-area{ display:none; }
+.boards{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+@media (max-width: 720px){ .boards{ grid-template-columns: 1fr; } }
+
+.board-title{
+  font-family:'Space Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.board-title .turn-dot{
+  width:7px; height:7px; border-radius:50%;
+  background: var(--phos-dim);
+}
+.board-title .turn-dot.active{ background: var(--phos); box-shadow: 0 0 6px var(--phos); }
+
+.grid{
+  display:grid;
+  grid-template-columns: 22px repeat(8, 1fr);
+  gap: 3px;
+  user-select:none;
+}
+.cell{
+  aspect-ratio: 1;
+  background: var(--water);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Space Mono', monospace;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.cell.label{ background:transparent; border:none; color: var(--text-faint); font-size:11px; }
+.cell.ship{ background: var(--ship); border-color: #2C4E66; }
+.cell.hit{ background: var(--hit); border-color: #ff7350; color:#2a0a02; font-weight:700; }
+.cell.miss{ background: var(--water); }
+.cell.miss::after{ content:""; width:5px; height:5px; border-radius:50%; background: var(--miss); }
+.cell.sunk{ background: var(--sunk); border-color: #9a4127; }
+.enemy .cell.water-cell{ cursor:pointer; }
+.enemy .cell.water-cell:hover{ background:#0E2B41; border-color: var(--phos-dim); }
+.enemy .cell.disabled{ cursor:default; }
+
+.log-panel{
+  margin-top: 4px;
+}
+.log-box{
+  height: 130px;
+  overflow-y: auto;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-family:'Space Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.9;
+}
+.log-box .l-you{ color: var(--text); }
+.log-box .l-ai{ color: var(--text-dim); }
+.log-box .l-hit{ color: var(--hit); }
+.log-box .l-sunk{ color: var(--amber); }
+.log-box .l-sys{ color: var(--phos); }
+
+.result-banner{
+  display:none;
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid var(--phos-dim);
+  border-radius: 4px;
+  text-align:center;
+  background: var(--panel-2);
+}
+.result-banner.win{ border-color: var(--phos); }
+.result-banner.lose{ border-color: var(--hit); }
+.result-banner h2{
+  font-family:'Space Mono', monospace;
+  letter-spacing: 2px;
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+.result-banner.win h2{ color: var(--phos); }
+.result-banner.lose h2{ color: var(--hit); }
+.result-banner p{ color: var(--text-dim); margin:0 0 16px; font-size: 13px; }
+.result-banner button{
+  padding: 10px 22px;
+  background:transparent;
+  border: 1px solid var(--phos-dim);
+  color: var(--phos);
+  border-radius: 4px;
+  font-family:'Space Mono', monospace;
+  letter-spacing: 1px;
+  cursor:pointer;
+  font-size: 13px;
+}
+.result-banner button:hover{ border-color: var(--phos); }
+
+.sr-only{
+  position:absolute; width:1px; height:1px;
+  padding:0; margin:-1px; overflow:hidden;
+  clip: rect(0,0,0,0); white-space:nowrap; border:0;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="radar"></div>
+    <div class="title-block">
+      <h1>GRID SIX</h1>
+      <p>Naval combat console — 8×8 sector, five hulls, one winner</p>
+    </div>
+  </div>
+
+  <div id="setup" class="panel">
+    <div class="setup-grid">
+      <div>
+        <p class="eyebrow">Fleet manifest</p>
+        <ul class="fleet-list" id="fleetList"></ul>
+      </div>
+      <div>
+        <p class="eyebrow">Opposing commander</p>
+        <div class="diff-options" id="diffOptions">
+          <label class="diff-opt" data-val="easy">
+            <input type="radio" name="diff" value="easy">
+            <div>
+              <div class="dlabel">Recruit</div>
+              <div class="ddesc">Fires at random, no memory of past shots.</div>
+            </div>
+          </label>
+          <label class="diff-opt active" data-val="medium">
+            <input type="radio" name="diff" value="medium" checked>
+            <div>
+              <div class="dlabel">Officer</div>
+              <div class="ddesc">Hunts in a grid pattern, follows up on hits.</div>
+            </div>
+          </label>
+          <label class="diff-opt" data-val="hard">
+            <input type="radio" name="diff" value="hard">
+            <div>
+              <div class="dlabel">Admiral</div>
+              <div class="ddesc">Tracks hull orientation and finishes ships fast.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+    </div>
+    <button class="start-btn" id="startBtn">Deploy fleet</button>
+  </div>
+
+  <div id="game" class="game-area">
+    <div class="boards">
+      <div>
+        <p class="board-title"><span>Your fleet</span> <span class="turn-dot" id="dotYou"></span></p>
+        <h2 class="sr-only">Your fleet grid, showing your ships and enemy hits against you</h2>
+        <div class="grid" id="ownGrid"></div>
+      </div>
+      <div>
+        <p class="board-title"><span>Enemy waters</span> <span class="turn-dot" id="dotEnemy"></span></p>
+        <h2 class="sr-only">Enemy waters grid — click a cell to fire</h2>
+        <div class="grid enemy" id="enemyGrid"></div>
+      </div>
+    </div>
+
+    <div class="log-panel">
+      <p class="eyebrow">Comms log</p>
+      <div class="log-box" id="log"></div>
+    </div>
+
+    <div class="result-banner" id="resultBanner">
+      <h2 id="resultTitle"></h2>
+      <p id="resultDesc"></p>
+      <button id="againBtn">New engagement</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const SIZE = 8;
+const ROWS = "ABCDEFGH";
+const SHIPS = [
+  { name: "Carrier", len: 5 },
+  { name: "Battleship", len: 4 },
+  { name: "Cruiser", len: 3 },
+  { name: "Submarine", len: 3 },
+  { name: "Destroyer", len: 2 },
+];
+
+const fleetList = document.getElementById('fleetList');
+SHIPS.forEach(s => {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="name">${s.name}</span><span class="len">${s.len}</span>`;
+  fleetList.appendChild(li);
+});
+
+let difficulty = 'medium';
+document.querySelectorAll('.diff-opt').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.diff-opt').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+    el.querySelector('input').checked = true;
+    difficulty = el.dataset.val;
+  });
+});
+
+function emptyBoard(){
+  return Array.from({length: SIZE}, () => Array(SIZE).fill('~'));
+}
+
+function inBounds(r,c){ return r>=0 && r<SIZE && c>=0 && c<SIZE; }
+
+function placeShips(board){
+  const ships = {};
+  for(const {name, len} of SHIPS){
+    let placed = false;
+    while(!placed){
+      const horiz = Math.random() < 0.5;
+      const row = Math.floor(Math.random()*SIZE);
+      const col = Math.floor(Math.random()*SIZE);
+      let coords = [];
+      if(horiz && col+len <= SIZE){
+        coords = Array.from({length:len}, (_,i) => [row, col+i]);
+      } else if(!horiz && row+len <= SIZE){
+        coords = Array.from({length:len}, (_,i) => [row+i, col]);
+      } else { continue; }
+      if(coords.every(([r,c]) => board[r][c] === '~')){
+        coords.forEach(([r,c]) => board[r][c] = 'S');
+        ships[name] = coords;
+        placed = true;
+      }
+    }
+  }
+  return ships;
+}
+
+function takeShot(board, r, c){
+  if(board[r][c] === 'S'){ board[r][c] = 'X'; return true; }
+  if(board[r][c] === '~'){ board[r][c] = 'O'; return false; }
+  return null;
+}
+
+function checkSunk(board, ships, announced){
+  const newlySunk = [];
+  for(const name in ships){
+    if(announced.has(name)) continue;
+    if(ships[name].every(([r,c]) => board[r][c] === 'X')){
+      newlySunk.push(name);
+    }
+  }
+  return newlySunk;
+}
+
+function allSunk(board){
+  return !board.some(row => row.includes('S'));
+}
+
+class RandomAI{
+  constructor(){ this.shots = new Set(); }
+  choose(){
+    while(true){
+      const r = Math.floor(Math.random()*SIZE);
+      const c = Math.floor(Math.random()*SIZE);
+      const k = r+","+c;
+      if(!this.shots.has(k)) return [r,c];
+    }
+  }
+  record(r,c){ this.shots.add(r+","+c); }
+}
+
+class CheckerboardAI{
+  constructor(){ this.shots = new Set(); this.queue = []; }
+  neighbors(r,c){
+    return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([nr,nc]) => inBounds(nr,nc) && !this.shots.has(nr+","+nc));
+  }
+  choose(){
+    while(this.queue.length){
+      const [r,c] = this.queue.shift();
+      if(!this.shots.has(r+","+c)) return [r,c];
+    }
+    let candidates = [];
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++)
+      if(!this.shots.has(r+","+c) && (r+c)%2===0) candidates.push([r,c]);
+    if(!candidates.length){
+      for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++)
+        if(!this.shots.has(r+","+c)) candidates.push([r,c]);
+    }
+    return candidates[Math.floor(Math.random()*candidates.length)];
+  }
+  record(r,c,hit,sunk){
+    this.shots.add(r+","+c);
+    if(hit){
+      if(sunk){ this.queue = []; }
+      else{
+        for(const cell of this.neighbors(r,c)){
+          if(!this.queue.some(([qr,qc]) => qr===cell[0] && qc===cell[1])) this.queue.push(cell);
+        }
+      }
+    }
+  }
+}
+
+class SmartAI{
+  constructor(){ this.shots = new Set(); this.queue = []; this.hits = []; }
+  neighbors(r,c){
+    return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([nr,nc]) => inBounds(nr,nc) && !this.shots.has(nr+","+nc));
+  }
+  queueLine(){
+    if(this.hits.length < 2) return;
+    const rows = this.hits.map(h=>h[0]);
+    const cols = this.hits.map(h=>h[1]);
+    this.queue = [];
+    if(new Set(rows).size === 1){
+      const r = rows[0];
+      const minC = Math.min(...cols), maxC = Math.max(...cols);
+      for(const nc of [minC-1, maxC+1]) if(inBounds(r,nc) && !this.shots.has(r+","+nc)) this.queue.push([r,nc]);
+    } else if(new Set(cols).size === 1){
+      const c = cols[0];
+      const minR = Math.min(...rows), maxR = Math.max(...rows);
+      for(const nr of [minR-1, maxR+1]) if(inBounds(nr,c) && !this.shots.has(nr+","+c)) this.queue.push([nr,c]);
+    }
+  }
+  choose(){
+    while(this.queue.length){
+      const [r,c] = this.queue.shift();
+      if(!this.shots.has(r+","+c)) return [r,c];
+    }
+    let candidates = [];
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++)
+      if(!this.shots.has(r+","+c) && (r+c)%2===0) candidates.push([r,c]);
+    if(!candidates.length){
+      for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++)
+        if(!this.shots.has(r+","+c)) candidates.push([r,c]);
+    }
+    return candidates[Math.floor(Math.random()*candidates.length)];
+  }
+  record(r,c,hit,sunk){
+    this.shots.add(r+","+c);
+    if(hit){
+      this.hits.push([r,c]);
+      if(sunk){ this.hits = []; this.queue = []; }
+      else{
+        this.queueLine();
+        if(!this.queue.length) this.queue = this.neighbors(r,c);
+      }
+    }
+  }
+}
+
+let state = null;
+
+function buildGrid(container, isEnemy){
+  container.innerHTML = '';
+  const corner = document.createElement('div');
+  corner.className = 'cell label';
+  container.appendChild(corner);
+  for(let c=0;c<SIZE;c++){
+    const el = document.createElement('div');
+    el.className = 'cell label';
+    el.textContent = c;
+    container.appendChild(el);
+  }
+  for(let r=0;r<SIZE;r++){
+    const rowLabel = document.createElement('div');
+    rowLabel.className = 'cell label';
+    rowLabel.textContent = ROWS[r];
+    container.appendChild(rowLabel);
+    for(let c=0;c<SIZE;c++){
+      const el = document.createElement('div');
+      el.className = 'cell water-cell';
+      el.dataset.r = r; el.dataset.c = c;
+      if(isEnemy){
+        el.addEventListener('click', onEnemyCellClick);
+      }
+      container.appendChild(el);
+    }
+  }
+}
+
+function renderBoard(container, board, hideShips){
+  const cells = container.querySelectorAll('.cell[data-r]');
+  cells.forEach(el => {
+    const r = +el.dataset.r, c = +el.dataset.c;
+    const v = board[r][c];
+    el.classList.remove('ship','hit','miss','sunk','disabled');
+    if(v === 'S' && !hideShips) el.classList.add('ship');
+    else if(v === 'X') el.classList.add('hit');
+    else if(v === 'O') el.classList.add('miss');
+  });
+}
+
+function markSunkCells(container, ships, sunkNames){
+  const cells = container.querySelectorAll('.cell[data-r]');
+  for(const name of sunkNames){
+    for(const [r,c] of ships[name]){
+      const el = [...cells].find(e => +e.dataset.r === r && +e.dataset.c === c);
+      if(el) el.classList.add('sunk');
+    }
+  }
+}
+
+function log(msg, cls){
+  const box = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = cls || '';
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setTurnIndicator(youActive){
+  document.getElementById('dotYou').classList.toggle('active', youActive);
+  document.getElementById('dotEnemy').classList.toggle('active', !youActive);
+}
+
+function onEnemyCellClick(e){
+  if(!state || !state.playerTurn || state.over) return;
+  const r = +e.currentTarget.dataset.r;
+  const c = +e.currentTarget.dataset.c;
+  if(state.enemyBoard[r][c] === 'X' || state.enemyBoard[r][c] === 'O') return;
+
+  const result = takeShot(state.enemyBoard, r, c);
+  const coord = ROWS[r] + c;
+  renderBoard(document.getElementById('enemyGrid'), state.enemyBoard, true);
+
+  const sunkNow = checkSunk(state.enemyBoard, state.enemyShips, state.playerSunkAnnounced);
+  if(result){
+    log(`You fire on ${coord} — HIT`, 'l-you l-hit');
+  } else {
+    log(`You fire on ${coord} — miss`, 'l-you');
+  }
+  for(const name of sunkNow){
+    state.playerSunkAnnounced.add(name);
+    log(`Enemy ${name} destroyed`, 'l-sunk');
+  }
+  markSunkCells(document.getElementById('enemyGrid'), state.enemyShips, sunkNow);
+
+  if(allSunk(state.enemyBoard)){
+    endGame(true);
+    return;
+  }
+
+  state.playerTurn = false;
+  setTurnIndicator(false);
+  document.getElementById('enemyGrid').classList.add('disabled');
+  setTimeout(aiTurn, 650);
+}
+
+function aiTurn(){
+  const [r,c] = state.ai.choose();
+  const result = takeShot(state.ownBoard, r, c);
+  const coord = ROWS[r] + c;
+
+  const sunkNow = checkSunk(state.ownBoard, state.playerShips, state.aiSunkAnnounced);
+  state.ai.record(r, c, result, sunkNow.length > 0);
+
+  renderBoard(document.getElementById('ownGrid'), state.ownBoard, false);
+
+  if(result){
+    log(`Enemy fires on ${coord} — HIT`, 'l-ai l-hit');
+  } else {
+    log(`Enemy fires on ${coord} — miss`, 'l-ai');
+  }
+  for(const name of sunkNow){
+    state.aiSunkAnnounced.add(name);
+    log(`Your ${name} destroyed`, 'l-sunk');
+  }
+  markSunkCells(document.getElementById('ownGrid'), state.playerShips, sunkNow);
+
+  if(allSunk(state.ownBoard)){
+    endGame(false);
+    return;
+  }
+
+  state.playerTurn = true;
+  setTurnIndicator(true);
+  document.getElementById('enemyGrid').classList.remove('disabled');
+}
+
+function endGame(playerWon){
+  state.over = true;
+  const banner = document.getElementById('resultBanner');
+  banner.style.display = 'block';
+  banner.classList.remove('win','lose');
+  banner.classList.add(playerWon ? 'win' : 'lose');
+  document.getElementById('resultTitle').textContent = playerWon ? 'Victory' : 'Fleet lost';
+  document.getElementById('resultDesc').textContent = playerWon
+    ? 'Every enemy hull is on the seabed.'
+    : 'Your fleet has been sunk.';
+  log(playerWon ? 'All enemy ships destroyed. Victory.' : 'All your ships destroyed. Defeat.', 'l-sys');
+}
+
+function makeAI(diff){
+  if(diff === 'easy') return new RandomAI();
+  if(diff === 'hard') return new SmartAI();
+  return new CheckerboardAI();
+}
+
+function startGame(){
+  const ownBoard = emptyBoard();
+  const enemyBoard = emptyBoard();
+  const playerShips = placeShips(ownBoard);
+  const enemyShips = placeShips(enemyBoard);
+
+  state = {
+    ownBoard, enemyBoard, playerShips, enemyShips,
+    ai: makeAI(difficulty),
+    playerTurn: true,
+    over: false,
+    playerSunkAnnounced: new Set(),
+    aiSunkAnnounced: new Set(),
+  };
+
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('game').style.display = 'block';
+  document.getElementById('resultBanner').style.display = 'none';
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('enemyGrid').classList.remove('disabled');
+
+  buildGrid(document.getElementById('ownGrid'), false);
+  buildGrid(document.getElementById('enemyGrid'), true);
+  renderBoard(document.getElementById('ownGrid'), ownBoard, false);
+  renderBoard(document.getElementById('enemyGrid'), enemyBoard, true);
+  setTurnIndicator(true);
+
+  const diffLabel = {easy:'Recruit', medium:'Officer', hard:'Admiral'}[difficulty];
+  log(`Engagement started — opposing commander: ${diffLabel}`, 'l-sys');
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('againBtn').addEventListener('click', () => {
+  document.getElementById('game').style.display = 'none';
+  document.getElementById('setup').style.display = 'block';
+});
+</script>
+</body>
+</html>
